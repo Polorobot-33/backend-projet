@@ -8,5 +8,9 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "drizzle-kit": "^0.31.1",
+    "drizzle-orm": "^0.43.1"
   }
 }
