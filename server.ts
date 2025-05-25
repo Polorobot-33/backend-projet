@@ -9,8 +9,30 @@ const init = (nb_colors) => {
   }
 };
 
-const try_guess = (guess) => {
+const try_guess = async (answer) => {
   //TODO : check guess, write in into db, return the number of correct guesses
+  const parsed = JSON.parse(answer);
+  let nb_positions = 0;
+  let nb_colors = 0;
+  let correct_colors = [];
+  for (let i = 0; i < correct_guess.length; i++) {
+    const element = parsed[i];
+    if (element == correct_guess[i]) {
+      nb_positions += 1;
+      correct_colors.push(element);
+    }
+  };
+  for (let color in parsed) {
+    if (!correct_colors.includes(color) && correct_guess.includes(color))
+    {
+      nb_colors += 1
+    }
+  };
+  const data = {guess: answer,
+    correct_positions: nb_positions,
+    correct_colors: nb_colors};
+  await db.insert(schema.guesses).values(data);
+  return data;
 };
 
 const server = Bun.serve({
@@ -29,7 +51,7 @@ const server = Bun.serve({
     "/api/guess": {
       POST: async (req) => {
         const body = await req.json();
-        return new Response(try_guess(body.guess));
+        return Response.json(await try_guess(body.guess));
       },
     },
 
