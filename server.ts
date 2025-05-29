@@ -1,71 +1,88 @@
 import db from "./db";
 import * as schema from "./db/schema";
 
-let correct_guess = [];
+let sercet_code: number[] = [];
+let guess_limit: number = 0;
+let nb_guess: number = 0;
 
-const init = (nb_colors) => {
+const init = async (nb_colors: number, nb_guesses: number) => {
   for (let i = 0; i < nb_colors; i++) {
-    correct_guess.push(Math.floor(Math.random() * nb_colors));
+    sercet_code.push(Math.floor(Math.random() * nb_colors));
   }
+  guess_limit = nb_guesses;
+  nb_guess = 0;
+  await db.delete(schema.guesses);
 };
 
-const try_guess = async (answer) => {
-  //TODO : check guess, write in into db, return the number of correct guesses
-  const parsed = JSON.parse(answer);
+const try_guess = async (answer: number[]) => {
   let nb_positions = 0;
   let nb_colors = 0;
   let correct_colors = [];
-  for (let i = 0; i < correct_guess.length; i++) {
-    const element = parsed[i];
-    if (element == correct_guess[i]) {
+  for (let i = 0; i < sercet_code.length; i++) {
+    const element = answer[i];
+    if (element == sercet_code[i]) {
       nb_positions += 1;
       correct_colors.push(element);
     }
-  };
-  for (let color in parsed) {
-    if (!correct_colors.includes(color) && correct_guess.includes(color))
-    {
-      nb_colors += 1
+  }
+  for (let color of answer) {
+    if (!correct_colors.includes(color) && sercet_code.includes(color)) {
+      nb_colors += 1;
     }
-  };
-  const data = {guess: answer,
+  }
+  nb_guess += 1;
+  const data = {
+    id : nb_guess,
+    guess: JSON.stringify(answer),
+    correct_colors: nb_colors,
     correct_positions: nb_positions,
-    correct_colors: nb_colors};
+  };
   await db.insert(schema.guesses).values(data);
-  return data;
+  const response = {
+    data,
+    message: `Keep trying ! You have ${guess_limit - nb_guess} guesses left.`,
+  };
+  if (nb_guess > guess_limit) {
+    response.message = `You lost ! The correct code was : ${sercet_code}`;
+  } else if (nb_positions == sercet_code.length) {
+    response.message = `You won in ${nb_guess} guesses !`;
+  }
+  return response;
 };
 
 const server = Bun.serve({
   port: 8080,
   routes: {
-    "/api/status": new Response("OK"),
-
+    // {nb_colors = ..., nb_guesses = ...}
     "/api/start": {
       POST: async (req) => {
-        const body = await req.json();
-        init(body.nb_colors);
-        return new Response(`Game started with ${body.nb_colors} colors`);
+        const body = (await req.json()) as {
+          nb_colors: number;
+          nb_guesses: number;
+        };
+        await init(body.nb_colors, body.nb_guesses);
+        return new Response(
+          `Game started with ${body.nb_colors} colors and a limit of ${body.nb_guesses} guesses.`
+        );
       },
     },
 
+    // {guess = '[1, 2, 3 ...]'}
     "/api/guess": {
       POST: async (req) => {
-        const body = await req.json();
+        const body = (await req.json()) as { guess: number[] };
         return Response.json(await try_guess(body.guess));
       },
     },
 
-    "/api/posts": {
-      GET: () => new Response("List posts"),
-      POST: async (req) => {
-        const body = await req.json();
-        return Response.json({ created: true, ...body });
+    "/api/status": {
+      GET: async () => {
+        const data = await db.select().from(schema.guesses);
+        return Response.json(data);
       },
     },
 
     "/api/*": Response.json({ message: "Not found" }, { status: 404 }),
-
-    "/blog/hello": Response.redirect("/blog/hello/world"),
   },
 
   // (optional) fallback for unmatched routes:
@@ -74,5 +91,7 @@ const server = Bun.serve({
     return new Response("Not Found", { status: 404 });
   },
 });
+
+await db.delete(schema.guesses);
 
 console.log(`Listening on ${server.url}`);
