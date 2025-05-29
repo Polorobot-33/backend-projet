@@ -45,7 +45,7 @@ const try_guess = async (answer: number[]) => {
   if (nb_guess > guess_limit) {
     response.message = `You lost ! The correct code was : ${sercet_code}`;
   } else if (nb_positions == sercet_code.length) {
-    response.message = `You won in ${nb_guess} guesses !`;
+    response.message = `You won with ${nb_guess} guesses !`;
   }
   return response;
 };
@@ -62,7 +62,7 @@ const server = Bun.serve({
         };
         await init(body.nb_colors, body.nb_guesses);
         return new Response(
-          `Game started with ${body.nb_colors} colors and a limit of ${body.nb_guesses} guesses.`
+          `Game started with ${body.nb_colors} colors and a maximum limit of ${body.nb_guesses} guesses.`
         );
       },
     },
