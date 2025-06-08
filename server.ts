@@ -1,35 +1,69 @@
 import db from "./db";
 import * as schema from "./db/schema";
 
-let sercet_code: number[] = [];
+let secret_code: number[] = [];
 let guess_limit: number = 0;
 let nb_guess: number = 0;
 
-const init = async (nb_colors: number, nb_guesses: number) => {
-  for (let i = 0; i < nb_colors; i++) {
-    sercet_code.push(Math.floor(Math.random() * nb_colors));
+//initiates a new game with nb_colors colors and nb_guesses guesses
+const init = async (nb_colors: number, nb_slots: number, nb_guesses: number) => {
+  secret_code = [];
+  for (let i = 0; i < nb_slots; i++) {
+    secret_code.push(Math.floor(Math.random() * nb_colors));
   }
   guess_limit = nb_guesses;
   nb_guess = 0;
   await db.delete(schema.guesses);
 };
 
+/* 
+ * Processes a trial from the user
+ * Returns the response : 
+ * - id of the guess
+ * - trial that was sent
+ * - number of correct colors
+ * - number of correct positions
+ * - message indicating the status of the game (playing with n guess left, win or lose)
+*/
 const try_guess = async (answer: number[]) => {
   let nb_positions = 0;
   let nb_colors = 0;
   let correct_colors = [];
-  for (let i = 0; i < sercet_code.length; i++) {
+  
+  // for (let i = 0; i < secret_code.length; i++) {
+  //   const element = answer[i];
+  //   if (element == secret_code[i]) {
+  //     nb_positions += 1;
+  //     correct_colors.push(element);
+  //   }
+  // }
+  // for (let color of answer) {
+  //   if (!correct_colors.includes(color) && secret_code.includes(color)) {
+  //     nb_colors += 1;
+  //   }
+  // }
+  let secret_code_tmp = [...secret_code];
+  for (let i = 0; i < secret_code.length; i++) {
     const element = answer[i];
-    if (element == sercet_code[i]) {
+    if(element == undefined) continue;
+
+    if (element == secret_code[i]) {
       nb_positions += 1;
       correct_colors.push(element);
+      secret_code_tmp.splice(secret_code.indexOf(element), 1);
     }
   }
-  for (let color of answer) {
-    if (!correct_colors.includes(color) && sercet_code.includes(color)) {
+  for (let i = 0; i < secret_code.length; i++) {
+    const element = answer[i];
+    if(element == undefined) continue;
+
+    if (element != secret_code[i] && secret_code_tmp.includes(element)) {
       nb_colors += 1;
+      secret_code_tmp.splice(secret_code.indexOf(element), 1);
     }
   }
+
+
   nb_guess += 1;
   const data = {
     id : nb_guess,
@@ -42,14 +76,15 @@ const try_guess = async (answer: number[]) => {
     data,
     message: `Keep trying ! You have ${guess_limit - nb_guess} guesses left.`,
   };
-  if (nb_guess > guess_limit) {
-    response.message = `You lost ! The correct code was : ${sercet_code}`;
-  } else if (nb_positions == sercet_code.length) {
+  if (nb_guess >= guess_limit) {
+    response.message = `You lost ! The correct code was : ${secret_code}`;
+  } else if (nb_positions == secret_code.length) {
     response.message = `You won with ${nb_guess} guesses !`;
   }
   return response;
 };
 
+//main server routing
 const server = Bun.serve({
   port: 8080,
   routes: {
@@ -59,8 +94,9 @@ const server = Bun.serve({
         const body = (await req.json()) as {
           nb_colors: number;
           nb_guesses: number;
+          nb_slots: number;
         };
-        await init(body.nb_colors, body.nb_guesses);
+        await init(body.nb_colors, body.nb_slots, body.nb_guesses);
         return new Response(
           `Game started with ${body.nb_colors} colors and a maximum limit of ${body.nb_guesses} guesses.`
         );
